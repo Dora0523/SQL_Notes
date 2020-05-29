@@ -254,5 +254,196 @@ ON employee.emp_id = branch.mgr_id; /*join EMPLOYEE and BRANCH table together in
 
 
 /*********************** NESTED QUIRIES *************************/
+/*FIND NAME OF EMPLOYEES WHO HAVE SOLD OVER 30000 TO A SINGLE CLIENT*/
+SELECT employee.first_name, employee.last_name
+FROM employee
+WHERE employee.emp_id in (
+
+   SELECT works_with.emp_id
+   FROM works_with
+   WHERE works_with.total_sales > 30000
+
+);
+
+/*FIND ALL CLIENTS WHO ARE HANDLED BY BRANCH MICHAEL SCOTT, ASSUME YOU KNOW MICHAEL'S ID*/
+SELECT client.client_name
+FROM client
+WHERE client.branch_id = (
+   SELECT branch.branch_id
+   FROM branch
+   WHERE branch.mgr_id = 102
+   LIMIT 1
+);
 
 
+/*********************** ON DELETE *************************/
+
+
+DELETE FROM employee
+WHERE emp_id = 102; /*
+                      FOREIGN KEY(mgr_id) REFERENCES employee(emp_id) ON DELETE SET NULL
+                       --> if emp_id is deleted, mgr_id == NULL
+                    */
+
+
+DELETE FROM branch
+WHERE branch_id = 2;
+                  /* 
+                   FOREIGN KEY(client_id) REFERENCES client(client_id) ON DELETE CASCADE
+					--> if branch_id is deleted, entire row of client_id is deleted
+				   */
+                   
+
+/*********************** TRIGGERS *************************/
+CREATE TABLE trigger_test(
+   message VARCHAR(100)
+);
+
+
+/* IN TERMINAL COMMAND LINE:  */
+
+DELIMITER $$ /* change delimiter to $$ */
+
+CREATE 
+   TRIGGER my_trigger1 BEFORE INSERT
+   ON employee
+   FOR EACH ROW BEGIN
+      INSERT INTO trigger_test VALUES('added new employee');
+   END$$    /* ==> when insert an employee to employee table, print("added new employee")*/
+
+
+CREATE 
+   TRIGGER my_trigger2 BEFORE INSERT
+   ON employee
+   FOR EACH ROW BEGIN
+      INSERT INTO trigger_test VALUES(NEW.first_name);
+   END$$  /* ==> when insert an employee to employee table, print(first_name of employee added)*/
+   
+   
+CREATE 
+   TRIGGER my_trigger3 BEFORE/*AFTER*/  INSERT/*DELETE*/
+   ON employee
+   FOR EACH ROW BEGIN
+      IF NEW.sex = 'M' THEN
+         INSERT INTO trigger_test VALUES('added male employee');
+	  ELSE NEW.sex = 'F' THEN
+         INSERT INTO trigger_test VALUES('added female employee');
+	  ELSE
+         INSERT INTO trigger_test VALUES('added other employee');
+	  END IF;
+   END$$ /* ==> conditional prints*/
+   
+DELIMITER ; /* change delimiter back to ;  */
+
+/*DROP TRIGGER*/
+DROP TRIGGER my_trigger;
+
+/*********************** ER DIAGRAMS *************************/
+
+/*
+* Entity     - object we want to model & store info about (eg. student)
+             - can define more tha one entity in the diagram (eg. student & class)
+           
+* Attributes - specific pieces of info about entity (eg. name, grade, pga)
+    * Primary key             - attribute uniquel identify an entry in database table (eg. student_id)
+    * Composite Attributes    - attibute that can be broken up into sub-attributes (eg. name --> first/last name)
+    * Multi-Valued Attributes - attribute that can have more than one value (eg. clubs)
+    * Derived Attributes      - attribute that can bederivedfrom other attributes (eg. has_honors --> from gpa)
+
+* Relationships - defines a relationship btw two entities 
+   * Partial Participation(-)  - not all membersmust partcipate in the relationship
+   * Total Participation(=)    - all members must participate in the relationship
+      (eg.  Students ---- TakesRelationship ====== Class)
+      
+      * Relationship Attribute - an attribute about relationship (eg. grade <-- TakesRelationship)
+
+
+* <Weak Entity>              - an entity that cannot be uniquely identified by its attributes alone
+* Identifying Relationship   - A relationship that serves to uniquly identify the weak entity
+                                (eg. Exam ===== Has ------ Class)
+*/
+
+
+
+/* EG. COMPNAY ERD
+
++ <Branch Supplier> --> *supplier_name*,supply_type
+    ||
+    || M
+    ||
+    Supplies
+    |
+    | N
+    |
++ Branch --> *branch_id*, branch_name, #employees     --------------------------------------
+    ||                  ||                                                                 |
+    || 1                || 1                                                               |
+    ||                  ||                                                                 |
+    WorksFor           Manages --> start_date                                              | 1
+    ||                   |                                                                 |
+    || N                 | 1                                                               |
+    ||                   |                                                                 |
++ Employee --> *emp_id*, birth_date, name (--> first_name, last_name), salary, sex         |
+     |                                                                                     |
+     | M                                                                                   Handles
+     |                                                                                     ||
+     WorksWith --> sales                                                                   ||
+     ||                                                                                    || N
+     || N                                                                                  ||
+     ||                                                                                    ||
++ Clients --> *client_id*, client_name    =================================================||
+*/
+
+/*********************** ER DIAGRAMS TO SCHEMAS *************************/
+/* EG. COMPANY
+
+STEP1) Entity -> Tables; Attributes -> Cols
+STEP2) <Weak Entity>: Branch Supplier 
+STEP3) |ForeignKey| added to (=),(N)
+           eg. Branch == Manages -- Employee
+                      ====>  add Branch.mgr_id (<=>) emp_id
+		   
+           eg. Branch ==1== WorksFor ==N== Employee
+                      ====> add Employee.branch_id (<=>) branch_id
+                      
+STEP4) |ForeignKey| with M-N Relationships: create compound keys
+           eg. Employee ---M--- WorksWith(->sales) ===N=== Client
+                     ====> Create Works On Table
+
+
+
+______________________________________________________________
+EMPLOYEE
+ *emp_id*, 
+ first_name, 
+ last_name, 
+ birth_date, 
+ sex,
+ salary, 
+ |Super_id|,          =>emp_id
+ |branch_id|,         =>BRANCH.branch_id
+______________________________________________________________
+BRANCH
+ *branch_id*, 
+ branch_name, 
+ |mgr_id|,           =>emp_id
+______________________________________________________________
+<Branch Supplier>
+ *|branch_id|*,      =>BRANCH.branch_id 
+ *supplier_name*,   
+ supplier_type,
+______________________________________________________________
+CLIENT
+ *client_id*, 
+ client_name, 
+ |branch_id|,        =>BRANCH.branch_id
+_____________________________________________________________
+Works On
+ *|emp_id|*,         =>EMPLOYEE.emp_id 
+ *|client_id|*,      =>CLIENT.client_id
+ sales,
+_____________________________________________________________
+
+       
+      
+   
